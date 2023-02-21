@@ -1,0 +1,64 @@
+1. Install JWT => $npm i jsonwebtoken
+2. Require JWT => const jwt = require("jsonwebtoken");
+3. Generate a Secret key in terminal => $node => $require("crypto").randomBytes(64).toString("hex");
+4. Copy the secret key and set in an environment variable => ACCESS_TOKEN_SECRET=secretKey
+5. Get user information after login:
+   app.post("/jwt", (req, res) => {
+    const user = req.body;
+    console.log(user);
+   });
+6. Call this api: "http://localhost:5000/jwt" and send user information after login:
+    fetch("http://localhost:5000/jwt", {
+        method: "POST",
+        headers: {
+            'Content-Type':'application/json',
+        },
+        body: JSON.stringify({email: user.email}), // send an object with only email => {email : user.email}
+    })
+    .then(res => res.json())
+    .then(data => console.log(data));
+7. Create token in backend api and send back to client using:
+   const token = jwt.sign(user, process.env.ACCESS_TOKEN_SECRET, {expiresIn: '1h'});
+   res.send({token}); // sending as object means sending as json
+8. Save token in localStorage(not best practice / should be saved as http only cookie)
+   localStorage.setItem("token", data.token);
+9. Send the token in headers of every api call that checks authorization before responding with data:
+   fetch("http://localhost:5000/orders?email="user@email.com", {
+    headers: {
+        authorization: `Bearer ${localStorage.getItem("token")}`,
+    }
+   })
+10. To check token validity add an extra api handler function:
+    
+    app.get("/api", verifyJWT, async (req,res) => {
+        // check query email and decoded email
+        if (req.decoded.email !== req.query.email) {
+            return res.status(403).send("Forbidden");
+        }
+    })
+    
+    const verifyJWT = (req, res, next) => {
+    // check if authorization header exists
+    const authorizationHeader = req.headers.authorization; // result: `Bearer hereYourTokenFromClientSide`
+    // if no authorization header sent during api call
+    if (!authorizationHeader) {
+    return res.status(401).send({message: "Unauthorized Access"});
+    }
+    const token = authorizationHeader.split(" ")[1];
+    // verify token
+    jwt.verify(token, process.env.ACCESS_TOKEN_SECRET, (err, decoded) => {
+    // if error happens during verification
+    if (err) {
+        return res.status(401).send({message: "Unauthorized Access"});
+    }
+
+    // set decoded payload to req object
+    req.decoded = decoded;
+    // next means the next handler function in the api
+    next();
+    });
+    };
+11. When token expires api will respond with status 401 or 403
+    So, status check is must in api call in frontend and logOut the user to regenerate token
+
+12. Remove the token while log out.

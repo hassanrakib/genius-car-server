@@ -2,6 +2,7 @@ const express = require("express");
 const { MongoClient } = require("mongodb");
 const cors = require("cors");
 require("dotenv").config();
+const jwt = require("jsonwebtoken");
 const port = process.env.PORT || 5000;
 
 const app = express();
@@ -14,10 +15,44 @@ const uri = `mongodb+srv://${process.env.DB_USER}:${process.env.DB_PASSWORD}@clu
 
 const client = new MongoClient(uri);
 
+const verifyJWT = (req, res, next) => {
+  // check if authorization header exists
+  const authorizationHeader = req.headers.authorization; // result: `Bearer hereYourTokenFromClientSide`
+  // if no authorization header sent during api call
+  if (!authorizationHeader) {
+    return res.status(401).send({message: "Unauthorized Access"});
+  }
+  const token = authorizationHeader.split(" ")[1];
+  // verify token
+  jwt.verify(token, process.env.ACCESS_TOKEN_SECRET, (err, decoded) => {
+    // if error happens during verification
+    if (err) {
+      return res.status(401).send({message: "Unauthorized Access"});
+    }
+
+    // decoded payload
+    req.decoded = decoded;
+    // next means the next handler function in the api
+    next();
+  });
+};
+
 async function run() {
   try {
     const servicesCollection = client.db("geniusCar").collection("services");
     const ordersCollection = client.db("geniusCar").collection("orders");
+
+    // receive user data after login
+    app.post("/jwt", (req, res) => {
+      const user = req.body;
+
+      // create token for the user
+      const token = jwt.sign(user, process.env.ACCESS_TOKEN_SECRET, {
+        expiresIn: "1h",
+      });
+      // send token to client side
+      res.send({ token });
+    });
 
     // get services
     app.get("/services", async (req, res) => {
@@ -36,11 +71,19 @@ async function run() {
     });
 
     // get all orders or filter by email
-    app.get("/orders", async (req, res) => {
+    app.get("/orders", verifyJWT, async (req, res) => {
       const email = req.query.email;
+
+      const decoded = req.decoded;
+
+      // if decoded email and qurey email is not same
+      if (decoded.email !== email) {
+        return res.status(403).send({message: "Access Forbidden"});
+      }
+
       let query = {};
       if (email) {
-        query = {email}
+        query = { email };
       }
       const cursor = ordersCollection.find(query);
       const orders = await cursor.toArray();
@@ -58,25 +101,23 @@ async function run() {
     app.patch("/orders/:service_id", async (req, res) => {
       const service_id = req.params.service_id;
       const status = req.body.status;
-      const filter = {service_id};
+      const filter = { service_id };
       const updateOrder = {
-        $set : {
-          status: status
-        }
-      }
+        $set: {
+          status: status,
+        },
+      };
       const result = await ordersCollection.updateOne(filter, updateOrder);
-      res.send(result); 
+      res.send(result);
     });
 
     // delete an order
     app.delete("/orders/:service_id", async (req, res) => {
       const service_id = req.params.service_id;
-      const query = {service_id};
+      const query = { service_id };
       const result = await ordersCollection.deleteOne(query);
       res.send(result);
     });
-  
-  
   } finally {
     //
   }
