@@ -45,6 +45,7 @@ async function run() {
     // receive user data after login
     app.post("/jwt", (req, res) => {
       const user = req.body;
+      console.log(user);
 
       // create token for the user
       const token = jwt.sign(user, process.env.ACCESS_TOKEN_SECRET, {
@@ -75,6 +76,7 @@ async function run() {
       const email = req.query.email;
 
       const decoded = req.decoded;
+      console.log(decoded);
 
       // if decoded email and qurey email is not same
       if (decoded.email !== email) {
