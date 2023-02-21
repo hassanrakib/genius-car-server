@@ -20,14 +20,14 @@ const verifyJWT = (req, res, next) => {
   const authorizationHeader = req.headers.authorization; // result: `Bearer hereYourTokenFromClientSide`
   // if no authorization header sent during api call
   if (!authorizationHeader) {
-    return res.status(401).send({message: "Unauthorized Access"});
+    return res.status(401).send({ message: "Unauthorized Access" });
   }
   const token = authorizationHeader.split(" ")[1];
   // verify token
   jwt.verify(token, process.env.ACCESS_TOKEN_SECRET, (err, decoded) => {
     // if error happens during verification
     if (err) {
-      return res.status(401).send({message: "Unauthorized Access"});
+      return res.status(401).send({ message: "Unauthorized Access" });
     }
 
     // decoded payload
@@ -45,7 +45,6 @@ async function run() {
     // receive user data after login
     app.post("/jwt", (req, res) => {
       const user = req.body;
-      console.log(user);
 
       // create token for the user
       const token = jwt.sign(user, process.env.ACCESS_TOKEN_SECRET, {
@@ -57,8 +56,16 @@ async function run() {
 
     // get services
     app.get("/services", async (req, res) => {
-      const query = {};
-      const cursor = servicesCollection.find(query);
+      const searchText = req.query.search;
+      let query = {};
+
+      if (searchText) {
+        query = { $text: { $search: searchText } };
+      }
+      // sort
+      const sortOrder = req.query.sort === "asc" ? 1 : -1;
+      const sort = { price: sortOrder };
+      const cursor = servicesCollection.find(query).sort(sort);
       const services = await cursor.toArray();
       res.send(services);
     });
@@ -80,7 +87,7 @@ async function run() {
 
       // if decoded email and qurey email is not same
       if (decoded.email !== email) {
-        return res.status(403).send({message: "Access Forbidden"});
+        return res.status(403).send({ message: "Access Forbidden" });
       }
 
       let query = {};
